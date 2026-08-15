@@ -1,0 +1,77 @@
+name: java-fsd-hello-world
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hellofsd-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-hellofsd}
+      POSTGRES_USER: ${DB_USER:-hellofsd}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-hellofsd}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-hellofsd} -d ${DB_NAME:-hellofsd}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - hellofsd-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hellofsd-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-hellofsd}
+      DB_USER: ${DB_USER:-hellofsd}
+      DB_PASSWORD: ${DB_PASSWORD:-hellofsd}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8081
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - hellofsd-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hellofsd-frontend
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - hellofsd-net
+
+networks:
+  hellofsd-net:
+    driver: bridge
+
+volumes:
+  postgres-data:

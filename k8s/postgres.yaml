@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hello-fsd-postgres
+  namespace: hello-fsd
+  labels:
+    app.kubernetes.io/name: hello-fsd-postgres
+    app.kubernetes.io/component: database
+spec:
+  serviceName: hello-fsd-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello-fsd-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello-fsd-postgres
+        app.kubernetes.io/component: database
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: hello-fsd-db-credentials
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hello-fsd-db-credentials
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hello-fsd-db-credentials
+                  key: DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              # Probe exec commands are run directly by the kubelet, not through a
+              # shell, so Kubernetes' $(VAR) substitution (which only applies to
+              # container command/args) doesn't expand here -- route through sh
+              # -c so $POSTGRES_USER is expanded from the container's own env.
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\""]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              # Probe exec commands are run directly by the kubelet, not through a
+              # shell, so Kubernetes' $(VAR) substitution (which only applies to
+              # container command/args) doesn't expand here -- route through sh
+              # -c so $POSTGRES_USER is expanded from the container's own env.
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\""]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-fsd-postgres
+  namespace: hello-fsd
+  labels:
+    app.kubernetes.io/name: hello-fsd-postgres
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: hello-fsd-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

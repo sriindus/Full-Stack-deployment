@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-fsd
+  namespace: hello-fsd
+  labels:
+    app.kubernetes.io/part-of: hello-fsd
+  annotations:
+    # ingress-nginx (Apache-2.0) -- open source controller
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: 1m
+    # Uncomment once cert-manager is installed to get a Let's Encrypt certificate:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: hello-fsd.local
+      http:
+        paths:
+          # More specific path first: API traffic goes straight to the
+          # backend Service, everything else falls through to the frontend.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hello-fsd-backend
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello-fsd-frontend
+                port:
+                  name: http
+  # Enable together with the cert-manager annotation above for HTTPS:
+  # tls:
+  #   - hosts:
+  #       - hello-fsd.local
+  #     secretName: hello-fsd-tls

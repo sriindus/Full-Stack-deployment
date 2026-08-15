@@ -1,0 +1,27 @@
+# Node / frontend
+node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+
+# Java / backend
+backend/target/
+*.class
+*.jar
+!maven-wrapper.jar
+
+# Env files
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+coverage/
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Local Jenkins state, if you run jenkins/ locally
+jenkins/jenkins_home/
